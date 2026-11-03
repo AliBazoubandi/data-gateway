@@ -1055,6 +1055,16 @@ It adds:
 - `calls.params_json`: Audit trail of parameters submitted per call.
 - Index `idx_exec_params (request_id, params_hash, status)`: Accelerates cache lookups for parameterized executions.
 
+A fourth re-runnable migration adds two-level request categories:
+
+```powershell
+& "C:\xampp\mysql\bin\mysql.exe" -u root -p data_gateway -e "source sql/migrations/2026-11-03-request-categories.sql"
+```
+
+It adds:
+- `request_categories`: Two-level category hierarchy (`parent_id = NULL` for Level 1, `parent_id != NULL` for Level 2) with foreign key `fk_req_cat_parent`.
+- `requests.category_id`: Foreign key `fk_requests_category` pointing to `request_categories.id` (`ON DELETE SET NULL`). Existing requests remain safely intact as `NULL` (uncategorized).
+
 A database created **before the webhook feature** needs one extra, one-off ALTER
 that the migration deliberately does not repeat (it is not part of the
 2026-10-20 set). Old calls keep `token_enc = NULL` and simply get no `link` in

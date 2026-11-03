@@ -89,11 +89,16 @@ $fc = static fn(string $f): string => \Admin\View::fcls($errors, $f);
         </div>
       </div>
       <div class="checklist" id="perm-list">
-        <?php foreach ($requests as $r): $on = !empty($granted[(int)$r['id']]); ?>
-        <label class="chk perm-row" data-search="<?= e(strtolower((string)$r['code'] . ' ' . (string)$r['name'])) ?>">
+        <?php foreach ($requests as $r): $on = !empty($granted[(int)$r['id']]); 
+          $catPath = !empty($r['category_name']) ? (!empty($r['parent_category_name']) ? ($r['parent_category_name'] . ' › ' . $r['category_name']) : $r['category_name']) : '';
+        ?>
+        <label class="chk perm-row" data-search="<?= e(strtolower((string)$r['code'] . ' ' . (string)$r['name'] . ' ' . $catPath)) ?>">
           <input type="checkbox" name="request_ids[]" value="<?= (int)$r['id'] ?>" <?= $on ? 'checked' : '' ?>>
           <b><?= e((string)$r['code']) ?></b>
           <small><?= e((string)$r['name']) ?></small>
+          <?php if ($catPath !== ''): ?>
+          <span class="badge b-key" style="font-size:10px;padding:1px 6px"><?= View::icon('folder', 10) ?><?= e($catPath) ?></span>
+          <?php endif; ?>
           <span style="margin-inline-start:auto"><?= $r['response_mode'] === 'instant' ? '<span class="badge b-mode instant">Instant</span>' : '<span class="badge b-mode delayed">' . View::icon('clock', 11) . 'Delayed</span>' ?></span>
         </label>
         <?php endforeach; ?>

@@ -276,8 +276,16 @@
       viewBtns.forEach(function (b) {
         b.classList.toggle('on', b.getAttribute('data-view') === view);
       });
-      if (cardsEl) { cardsEl.hidden = (view !== 'cards'); }
-      if (tableEl) { tableEl.hidden = (view !== 'table'); }
+      var cardsElements = $$('.view-cards, #req-cards');
+      var tableElements = $$('.view-table, #req-table');
+      cardsElements.forEach(function (el) {
+        el.hidden = (view !== 'cards');
+        el.style.display = (view === 'cards' ? '' : 'none');
+      });
+      tableElements.forEach(function (el) {
+        el.hidden = (view !== 'table');
+        el.style.display = (view === 'table' ? '' : 'none');
+      });
       store('gw-requests-view', view);
     }
 
@@ -287,10 +295,8 @@
       });
     });
 
-    var savedView = load('gw-requests-view');
-    if (savedView === 'cards' || savedView === 'table') {
-      setReqView(savedView);
-    }
+    var savedView = load('gw-requests-view') || 'cards';
+    setReqView(savedView);
   }
 
   /* ------------------------------------------------------ table sorting -- */
@@ -884,6 +890,8 @@
       { t: 'New connection', h: appUrl('/admin/connections/new'), icon: 'plus' },
       { t: 'Requests', h: appUrl('/admin/requests'), icon: 'file' },
       { t: 'New request', h: appUrl('/admin/requests/new'), icon: 'plus' },
+      { t: 'Categories', h: appUrl('/admin/categories'), icon: 'folder' },
+      { t: 'New category', h: appUrl('/admin/categories/new'), icon: 'plus' },
       { t: 'Clients', h: appUrl('/admin/clients'), icon: 'users' },
       { t: 'New client', h: appUrl('/admin/clients/new'), icon: 'plus' },
       { t: 'Logs', h: appUrl('/admin/logs'), icon: 'terminal' },

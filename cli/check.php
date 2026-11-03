@@ -85,7 +85,7 @@ try {
     $tz = db()->value('SELECT @@session.time_zone');
     echo '     session time_zone = ', (string)$tz, ', now = ', (string)db()->value('SELECT NOW()'), PHP_EOL;
 
-    $tables = ['admin_users', 'login_attempts', 'connections', 'requests', 'clients', 'client_request_permissions',
+    $tables = ['admin_users', 'login_attempts', 'connections', 'requests', 'request_categories', 'clients', 'client_request_permissions',
         'executions', 'calls', 'request_logs', 'admin_audit_log', 'webhook_deliveries', 'client_rate_limits',
         'worker_state'];
     $found = 0;
@@ -167,6 +167,14 @@ try {
         $ok('every stored webhook secret is encrypted at rest', $plain === 0,
             $plain > 0 ? 'run php cli\\encrypt_webhook_secrets.php (' . $plain . ' plaintext value(s) left)' : '');
     }
+
+    // Request categories (sql\migrations\2026-11-03-request-categories.sql):
+    $catMigration = 'apply sql\\migrations\\2026-11-03-request-categories.sql';
+    $hasCatId = (int)db()->value(
+        "SELECT COUNT(*) FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = 'requests' AND column_name = 'category_id'"
+    );
+    $ok('requests.category_id present (hierarchical categories)', $hasCatId === 1, $catMigration);
 
     // Scripts mode (sql\migrations\2026-10-20-scripts-mode.sql):
     // connections.allow_writes gates the relaxed multi-statement SQL policy.

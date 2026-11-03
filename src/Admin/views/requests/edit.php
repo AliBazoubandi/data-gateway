@@ -1,4 +1,4 @@
-<?php /** @var array $row @var array $connections @var array $changed @var array<string,string> $errors */
+<?php /** @var array $row @var array $connections @var array $changed @var array<string,string> $errors @var array $categoryTree @var int $selectedParentId @var int $selectedSubId */
 use Admin\View;
 $errors = $errors ?? [];
 $isNew = ($row['id'] ?? 0) === 0;
@@ -6,6 +6,18 @@ $inst = $row['instant_defaults'] ?? [];
 $fe = static fn(string $f): string => \Admin\View::ferr($errors, $f);
 $fc = static fn(string $f): string => \Admin\View::fcls($errors, $f);
 $changed = $changed ?? [];
+$categoryTree = $categoryTree ?? [];
+$selectedParentId = (int)($selectedParentId ?? 0);
+$selectedSubId = (int)($selectedSubId ?? 0);
+
+$subcategoriesByParent = [];
+foreach ($categoryTree as $p) {
+    $subs = [];
+    foreach ($p['children'] as $child) {
+        $subs[] = ['id' => (int)$child['id'], 'name' => (string)$child['name']];
+    }
+    $subcategoriesByParent[(int)$p['id']] = $subs;
+}
 ?>
 <link rel="stylesheet" href="/assets/codemirror/codemirror.css">
 <div class="page-head">
@@ -81,6 +93,37 @@ $changed = $changed ?? [];
     <label>Description for the data team
       <textarea name="description" rows="2"><?= e((string)$row['description']) ?></textarea>
     </label>
+
+    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;background:var(--surface-sunken, rgba(255,255,255,0.02))">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px">
+          <?= View::icon('folder', 14) ?> Category (2 Levels)
+        </span>
+        <a href="/admin/categories" target="_blank" class="hint small" style="text-decoration:none">
+          Manage categories &rarr;
+        </a>
+      </div>
+
+      <label style="margin-bottom:8px">Parent Category (Level 1)
+        <select name="parent_category_id" id="parent_category_id" onchange="syncCategorySelects()">
+          <option value="">— Uncategorized —</option>
+          <?php foreach ($categoryTree as $p): ?>
+          <option value="<?= (int)$p['id'] ?>" <?= $selectedParentId === (int)$p['id'] ? 'selected' : '' ?>>
+            <?= e((string)$p['name']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+
+      <label style="margin-bottom:0">Subcategory (Level 2)
+        <select name="subcategory_id" id="subcategory_id">
+          <option value="">— None (Directly under parent) —</option>
+        </select>
+        <span class="hint small" style="margin-top:4px;display:block">
+          Assign directly to Level 1, or pick a Level 2 subcategory (e.g. Category A &rsaquo; Category B).
+        </span>
+      </label>
+    </div>
     <label>Target connection
       <select name="connection_id" class="<?= $fc('connection_id') ?>" required>
         <option value="">— pick —</option>
@@ -143,6 +186,40 @@ function modeSwitch(m) {
 (function () {
   var m = document.querySelector('input[name=response_mode]:checked');
   if (m) { modeSwitch(m.value); }
+
+  var subcats = <?= json_encode($subcategoriesByParent, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+  var selParent = <?= $selectedParentId ?>;
+  var selSub = <?= $selectedSubId ?>;
+
+  function syncCategorySelects() {
+    var pSelect = document.getElementById('parent_category_id');
+    var sSelect = document.getElementById('subcategory_id');
+    if (!pSelect || !sSelect) return;
+
+    var pid = parseInt(pSelect.value, 10);
+    sSelect.innerHTML = '<option value="">— None (Directly under parent) —</option>';
+
+    if (!pid || !subcats[pid] || subcats[pid].length === 0) {
+      if (pid && (!subcats[pid] || subcats[pid].length === 0)) {
+        sSelect.options[0].text = '— No subcategories in this category —';
+      }
+      return;
+    }
+
+    var list = subcats[pid];
+    for (var i = 0; i < list.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = list[i].id;
+      opt.textContent = '↳ ' + list[i].name;
+      if (list[i].id === selSub) {
+        opt.selected = true;
+      }
+      sSelect.appendChild(opt);
+    }
+  }
+
+  window.syncCategorySelects = syncCategorySelects;
+  syncCategorySelects();
 })();
 </script>
 <script src="/assets/codemirror/codemirror.js" defer></script>

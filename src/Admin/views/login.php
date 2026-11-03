@@ -6,7 +6,7 @@ $err = $error ?? '';
 </div>
 <section class="card login-card">
   <div style="text-align:center">
-    <svg class="login-mark" width="48" height="48" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <svg class="login-mark" width="68" height="68" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
       <path d="M16 3.2 26.4 9.2v14L16 29 5.6 23.2v-14Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
       <circle cx="16" cy="16" r="3" fill="currentColor"/>
       <circle cx="16" cy="6.9" r="1.4" fill="currentColor"/>
@@ -27,5 +27,5 @@ $err = $error ?? '';
     </label>
     <div class="form-ops"><button class="btn btn-primary" type="submit">Sign in</button></div>
   </form>
-  <p class="hint login-note">Every sign-in attempt — success or failure — is audited.</p>
+  <p class="hint login-note" style="margin-top: 24px;">Every sign-in attempt — success or failure — is audited.</p>
 </section>

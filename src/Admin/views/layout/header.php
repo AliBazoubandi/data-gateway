@@ -43,6 +43,7 @@ if ($authed) {
 <meta name="csrf-token" content="<?= Str::e(\Core\Csrf::token()) ?>">
 <title><?= Str::e($title) ?> · <?= Str::e((string)Config::get('app.name', 'Data Gateway')) ?></title>
 <link rel="icon" type="image/svg+xml" href="<?= \Admin\View::url('/assets/favicon.svg') ?>">
+<link rel="preload" href="<?= \Admin\View::url('/assets/fonts/Mikhak-Variable.woff2') ?>" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="<?= \Admin\View::url('/assets/fonts/Geist-Variable.woff2') ?>" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="<?= \Admin\View::url('/assets/fonts/GeistMono-Variable.woff2') ?>" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="<?= \Admin\View::asset('/assets/css/tokens.css') ?>">
@@ -61,6 +62,7 @@ if ($authed) {
 </script>
 </head>
 <body data-page="<?= Str::e($page) ?>" data-base="<?= Str::e(\Core\Http::basePath()) ?>" class="<?= $authed ? 'shell-page' : 'login' ?>">
+<div style="display:none" aria-hidden="true"><?= file_get_contents(BASE_PATH . '/public/assets/icons.svg') ?></div>
 <?php if (!$authed): ?>
 <main class="wrap" id="content">
 <?php else: ?>
@@ -87,6 +89,7 @@ if ($authed) {
     <?= $navItem('/admin', '/admin', 'grid', 'Overview') ?>
     <?= $navItem('/admin/connections', '/admin/connections', 'database', 'Connections') ?>
     <?= $navItem('/admin/requests', '/admin/requests', 'file', 'Requests') ?>
+    <?= $navItem('/admin/categories', '/admin/categories', 'folder', 'Categories') ?>
     <?= $navItem('/admin/clients', '/admin/clients', 'users', 'Clients') ?>
     <div class="rail-section">Observe</div>
     <?= $navItem('/admin/logs', '/admin/logs', 'terminal', 'Logs') ?>

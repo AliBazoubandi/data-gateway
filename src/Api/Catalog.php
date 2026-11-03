@@ -31,10 +31,13 @@ final class Catalog
         $rows = $db->rows(
             'SELECT r.code, r.name, r.description, r.response_mode,
                     r.instant_cache_seconds, r.delay_minutes, r.ttl_minutes,
-                    r.timeout_seconds, r.max_rows, r.params_json, r.sql_text
+                    r.timeout_seconds, r.max_rows, r.params_json, r.sql_text,
+                    cat.name AS category_name, parent_cat.name AS parent_category_name
              FROM requests r
              JOIN client_request_permissions p ON p.request_id = r.id
              JOIN connections c ON c.id = r.connection_id
+             LEFT JOIN request_categories cat ON cat.id = r.category_id
+             LEFT JOIN request_categories parent_cat ON parent_cat.id = cat.parent_id
              WHERE p.client_id = ? AND r.is_active = 1 AND c.is_active = 1
              ORDER BY r.code ASC',
             [$clientId]
@@ -46,6 +49,10 @@ final class Catalog
                 'code' => (string)$r['code'],
                 'name' => (string)$r['name'],
                 'description' => $r['description'] !== null ? (string)$r['description'] : null,
+                'category' => $r['category_name'] !== null ? [
+                    'parent' => $r['parent_category_name'] !== null ? (string)$r['parent_category_name'] : null,
+                    'name' => (string)$r['category_name'],
+                ] : null,
                 'mode' => (string)$r['response_mode'],
                 'timeout_seconds' => (int)$r['timeout_seconds'],
                 'max_rows' => (int)$r['max_rows'],

@@ -666,6 +666,8 @@ select.chip {
 .btn-danger:hover { background: var(--danger-soft); border-color: var(--danger); }
 .btn-ghost { background: none; border-color: transparent; color: var(--muted); }
 .btn-ghost:hover { color: var(--text); background: var(--hover); border-color: transparent; }
+.btn-clear { background: var(--surface); border: 1px solid var(--hairline); color: var(--muted); }
+.btn-clear:hover { background: var(--hover); border-color: var(--faint); color: var(--text); }
 .btn-sm { padding: 4px 10px; font-size: 12px; gap: 6px; border-radius: var(--radius-sm); }
 .btn-sm svg.i { width: 13px; height: 13px; }
 .btn[disabled], .btn.disabled { opacity: 0.55; cursor: not-allowed; }
@@ -941,7 +943,8 @@ form.filters {
 form.filters label { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
 form.filters label { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin: 0; }
 form.filters label:first-child { margin: 0; }
-form.filters input, form.filters select { padding: 7px 10px; font-size: 13px; }
+form.filters input { padding: 7px 10px; font-size: 13px; }
+form.filters select { padding: 7px 10px; padding-inline-end: 34px !important; font-size: 13px; }
 form.filters input[type='number'] { min-width: 96px; }
 form.filters .f-grow { flex: 1; min-width: 180px; }
 form.filters .f-submit { display: flex; gap: 8px; align-items: end; }
@@ -1213,7 +1216,154 @@ td.msg { font-size: 12px; color: var(--muted); }
 .req-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .req-conn { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
 .req-conn .i { width: 12px; height: 12px; color: var(--faint); }
-.req-foot { display: flex; align-items: end; justify-content: space-between; gap: 8px; }
+.req-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.req-updated { white-space: nowrap !important; font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.req-foot .ops { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin-inline-start: auto; }
+
+/* Big category cards (folder drill-down) */
+.cat-big-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.cat-big-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  cursor: pointer;
+}
+.cat-big-card:hover {
+  border-color: var(--primary);
+  background: var(--surface-raised, var(--raised));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(124, 108, 255, 0.12);
+}
+.cat-big-card .cat-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.cat-big-card .cat-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform var(--t-fast) var(--ease);
+}
+.cat-big-card:hover .cat-card-icon {
+  transform: scale(1.08);
+}
+.cat-big-card .cat-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--heading);
+  line-height: 1.3;
+}
+.cat-big-card .cat-card-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cat-big-card .cat-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.cat-big-card .cat-card-arrow {
+  margin-inline-start: auto;
+  color: var(--faint);
+  display: inline-flex;
+  align-items: center;
+  transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cat-big-card:hover .cat-card-arrow {
+  color: var(--primary);
+  transform: translateX(4px);
+}
+[dir="rtl"] .cat-big-card:hover .cat-card-arrow {
+  transform: translateX(-4px);
+}
+
+.cat-drill-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.cat-drill-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cat-drill-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cat-drill-title-wrap h2 {
+  margin: 0 0 2px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--heading);
+}
+.cat-drill-title-wrap .sub {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.cat-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 22px 0 12px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+.cat-section-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--heading);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* skeleton loaders */
 .skel {
@@ -1631,7 +1781,7 @@ body.login .wrap {
   80% { opacity: 1; }
   100% { opacity: 0; transform: translateY(14%); }
 }
-.login-mark { color: var(--primary); margin-block-end: 10px; }
+.login-mark { color: var(--primary); margin-block-end: 14px; width: 68px; height: 68px; }
 .login-card {
   position: relative;
   z-index: 1;
@@ -1643,7 +1793,7 @@ body.login .wrap {
 .login-card .brand-t { opacity: 1; margin-inline-start: 10px; }
 .login-card form { text-align: start; }
 .login-card label { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 650; color: var(--muted); }
-.login-note { text-align: center; font-size: 11.5px; color: var(--faint); }
+.login-note { text-align: center; font-size: 11.5px; color: var(--faint); margin-top: 24px; }
 .login-card .btn { width: 100%; margin-block-start: 16px; padding-block: 10px; }
 
 /* ======================================================== CHECKLIST ====== */

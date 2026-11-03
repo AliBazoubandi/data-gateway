@@ -23,47 +23,157 @@ final class RequestController
 
         // --- filters (GET): q texts, mode/connection/active whitelisted ------
         $f = [
-            'q'       => trim((string)(Http::param('q', 'g') ?? '')),
-            'mode'    => (string)(Http::param('mode', 'g') ?? ''),
-            'conn'    => (string)(Http::param('connection', 'g') ?? ''),
-            'active'  => (string)(Http::param('active', 'g') ?? ''),
+            'q'        => trim((string)(Http::param('q', 'g') ?? '')),
+            'mode'     => (string)(Http::param('mode', 'g') ?? ''),
+            'conn'     => (string)(Http::param('connection', 'g') ?? ''),
+            'active'   => (string)(Http::param('active', 'g') ?? ''),
+            'category' => trim((string)(Http::param('category', 'g') ?? '')),
         ];
         $f['mode']   = in_array($f['mode'], ['delayed', 'instant'], true) ? $f['mode'] : '';
         $f['active'] = in_array($f['active'], ['0', '1'], true) ? $f['active'] : '';
 
-        $where = '';
-        $params = [];
-        if ($f['q'] !== '') {
-            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $f['q']) . '%';
-            $where .= ' WHERE (r.code LIKE ? OR r.name LIKE ?)';
-            $params[] = $like;
-            $params[] = $like;
-        }
-        if ($f['mode'] !== '') {
-            $where .= ($where === '' ? ' WHERE' : ' AND') . ' r.response_mode = ?';
-            $params[] = $f['mode'];
-        }
-        if (ctype_digit($f['conn']) && (int)$f['conn'] > 0) {
-            $where .= ($where === '' ? ' WHERE' : ' AND') . ' r.connection_id = ?';
-            $params[] = (int)$f['conn'];
-        }
-        if ($f['active'] !== '') {
-            $where .= ($where === '' ? ' WHERE' : ' AND') . ' r.is_active = ?';
-            $params[] = (int)$f['active'];
-        }
+        $isFiltered = ($f['q'] !== '' || $f['mode'] !== '' || $f['conn'] !== '' || $f['active'] !== '');
 
-        $rows = $db->rows(
-            'SELECT r.id, r.code, r.name, r.response_mode, r.is_active, r.timeout_seconds, r.max_rows,
-                    r.delay_minutes, r.ttl_minutes, r.instant_cache_seconds,
-                    r.updated_at, r.updated_by,
-                    c.name AS connection_name, c.db_type,
-                    (SELECT COUNT(*) FROM executions e WHERE e.request_id = r.id) AS runs_total
-             FROM requests r
-             JOIN connections c ON c.id = r.connection_id'
-            . $where
-            . ' ORDER BY r.code',
-            $params
-        );
+        $fetchRequests = static function (string $whereClause = '', array $params = []) use ($db): array {
+            return $db->rows(
+                'SELECT r.id, r.code, r.name, r.response_mode, r.is_active, r.timeout_seconds, r.max_rows,
+                        r.delay_minutes, r.ttl_minutes, r.instant_cache_seconds,
+                        r.updated_at, r.updated_by, r.category_id,
+                        cat.name AS category_name, cat.parent_id AS category_parent_id,
+                        parent_cat.id AS parent_category_id, parent_cat.name AS parent_category_name,
+                        c.name AS connection_name, c.db_type,
+                        (SELECT COUNT(*) FROM executions e WHERE e.request_id = r.id) AS runs_total
+                 FROM requests r
+                 JOIN connections c ON c.id = r.connection_id
+                 LEFT JOIN request_categories cat ON cat.id = r.category_id
+                 LEFT JOIN request_categories parent_cat ON parent_cat.id = cat.parent_id'
+                . ($whereClause !== '' ? ' WHERE ' . $whereClause : '')
+                . ' ORDER BY r.code',
+                $params
+            );
+        };
+
+        $categoryTree = CategoryController::getTree();
+        $uncategorizedCount = (int)$db->value('SELECT COUNT(*) FROM requests WHERE category_id IS NULL');
+        $totalRequestsCount = (int)$db->value('SELECT COUNT(*) FROM requests');
+
+        $drillState = 'root'; // 'root' | 'parent' | 'sub' | 'uncategorized' | 'search'
+        $currentCategory = null;
+        $parentCategory = null;
+        $subcategories = [];
+        $uncategorizedRequests = [];
+        $directRequests = [];
+        $subcategoryRequests = [];
+        $activeCategory = null;
+        $rows = [];
+
+        if ($isFiltered) {
+            $drillState = 'search';
+            $whereParts = [];
+            $params = [];
+            if ($f['q'] !== '') {
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $f['q']) . '%';
+                $whereParts[] = '(r.code LIKE ? OR r.name LIKE ?)';
+                $params[] = $like;
+                $params[] = $like;
+            }
+            if ($f['mode'] !== '') {
+                $whereParts[] = 'r.response_mode = ?';
+                $params[] = $f['mode'];
+            }
+            if (ctype_digit($f['conn']) && (int)$f['conn'] > 0) {
+                $whereParts[] = 'r.connection_id = ?';
+                $params[] = (int)$f['conn'];
+            }
+            if ($f['active'] !== '') {
+                $whereParts[] = 'r.is_active = ?';
+                $params[] = (int)$f['active'];
+            }
+            if ($f['category'] === 'none' || $f['category'] === 'uncategorized') {
+                $whereParts[] = 'r.category_id IS NULL';
+                $activeCategory = ['id' => 'none', 'name' => 'Uncategorized', 'is_uncategorized' => true];
+            } elseif (ctype_digit($f['category']) && (int)$f['category'] > 0) {
+                $catId = (int)$f['category'];
+                $catRow = $db->one('SELECT id, parent_id, name FROM request_categories WHERE id = ?', [$catId]);
+                if ($catRow !== null) {
+                    if ($catRow['parent_id'] === null) {
+                        $whereParts[] = '(r.category_id = ? OR r.category_id IN (SELECT id FROM request_categories WHERE parent_id = ?))';
+                        $params[] = $catId;
+                        $params[] = $catId;
+                        $activeCategory = ['id' => $catId, 'name' => (string)$catRow['name'], 'level' => 1];
+                    } else {
+                        $parentCat = $db->one('SELECT id, name FROM request_categories WHERE id = ?', [(int)$catRow['parent_id']]);
+                        $whereParts[] = 'r.category_id = ?';
+                        $params[] = $catId;
+                        $activeCategory = [
+                            'id' => $catId,
+                            'name' => (string)$catRow['name'],
+                            'parent_name' => $parentCat ? (string)$parentCat['name'] : '',
+                            'full_name' => ($parentCat ? (string)$parentCat['name'] . ' › ' : '') . (string)$catRow['name'],
+                            'level' => 2,
+                        ];
+                    }
+                }
+            }
+            $rows = $fetchRequests(implode(' AND ', $whereParts), $params);
+        } else {
+            // Drill-down folder navigation
+            if ($f['category'] === 'none' || $f['category'] === 'uncategorized') {
+                $drillState = 'uncategorized';
+                $uncategorizedRequests = $fetchRequests('r.category_id IS NULL');
+                $rows = $uncategorizedRequests;
+                $activeCategory = ['id' => 'none', 'name' => 'Uncategorized', 'is_uncategorized' => true];
+            } elseif (ctype_digit($f['category']) && (int)$f['category'] > 0) {
+                $catId = (int)$f['category'];
+                $catRow = $db->one('SELECT * FROM request_categories WHERE id = ?', [$catId]);
+                if ($catRow !== null) {
+                    if ($catRow['parent_id'] === null) {
+                        // Level 1: Parent category
+                        $drillState = 'parent';
+                        $subcategories = $db->rows(
+                            'SELECT c.id, c.parent_id, c.name, c.description, c.sort_order,
+                                    (SELECT COUNT(*) FROM requests r WHERE r.category_id = c.id) AS requests_count
+                             FROM request_categories c
+                             WHERE c.parent_id = ?
+                             ORDER BY c.sort_order ASC, c.name ASC',
+                            [$catId]
+                        );
+                        $directRequests = $fetchRequests('r.category_id = ?', [$catId]);
+                        $rows = $directRequests;
+                        $totalReqsCount = (int)$db->value(
+                            'SELECT COUNT(*) FROM requests WHERE category_id = ? OR category_id IN (SELECT id FROM request_categories WHERE parent_id = ?)',
+                            [$catId, $catId]
+                        );
+                        $catRow['total_requests_count'] = $totalReqsCount;
+                        $currentCategory = $catRow;
+                        $activeCategory = ['id' => $catId, 'name' => (string)$catRow['name'], 'level' => 1];
+                    } else {
+                        // Level 2: Subcategory
+                        $drillState = 'sub';
+                        $currentCategory = $catRow;
+                        $parentCategory = $db->one('SELECT * FROM request_categories WHERE id = ?', [(int)$catRow['parent_id']]);
+                        $subcategoryRequests = $fetchRequests('r.category_id = ?', [$catId]);
+                        $rows = $subcategoryRequests;
+                        $activeCategory = [
+                            'id' => $catId,
+                            'name' => (string)$catRow['name'],
+                            'parent_name' => $parentCategory ? (string)$parentCategory['name'] : '',
+                            'full_name' => ($parentCategory ? (string)$parentCategory['name'] . ' › ' : '') . (string)$catRow['name'],
+                            'level' => 2,
+                        ];
+                    }
+                } else {
+                    $drillState = 'root';
+                    $uncategorizedRequests = $fetchRequests('r.category_id IS NULL');
+                    $rows = $uncategorizedRequests;
+                }
+            } else {
+                // Root: Level 1 categories + Uncategorized requests
+                $drillState = 'root';
+                $uncategorizedRequests = $fetchRequests('r.category_id IS NULL');
+                $rows = $uncategorizedRequests;
+            }
+        }
 
         // Request name for each connection select option + the filter UI.
         $connections = $db->rows('SELECT id, name, db_type FROM connections ORDER BY name');
@@ -101,9 +211,15 @@ final class RequestController
             }
         }
 
-        // "last changed by X at Y" names come through $rows.updated_by; the
-        // page resolves them to usernames in a single pass if wanted.
         View::render('requests/list', [
+            'drillState' => $drillState,
+            'parentCategories' => $categoryTree,
+            'currentCategory' => $currentCategory,
+            'parentCategory' => $parentCategory,
+            'subcategories' => $subcategories,
+            'uncategorizedRequests' => $uncategorizedRequests,
+            'directRequests' => $directRequests,
+            'subcategoryRequests' => $subcategoryRequests,
             'rows' => $rows,
             'sparks' => $sparks,
             'f' => $f,
@@ -111,6 +227,10 @@ final class RequestController
             'clients' => $clients,
             'grantReq' => $grantReq,
             'grantedClientIds' => $grantedClientIds,
+            'categoryTree' => $categoryTree,
+            'uncategorizedCount' => $uncategorizedCount,
+            'totalRequestsCount' => $totalRequestsCount,
+            'activeCategory' => $activeCategory,
         ], 'Requests', 'requests-list');
     }
 
@@ -133,9 +253,31 @@ final class RequestController
                 $changed = ['by' => (string)$by, 'at' => (string)($row['updated_at'] ?? '')];
             }
         }
-        View::render('requests/edit', ['row' => $row ?? self::defaults(), 'connections' => $connections,
-            'changed' => $changed],
-            $row === null ? 'New request' : 'Edit request', 'request-edit');
+
+        $selectedParentId = 0;
+        $selectedSubId = 0;
+        if ($row !== null && !empty($row['category_id'])) {
+            $cat = $db->one('SELECT id, parent_id FROM request_categories WHERE id = ?', [(int)$row['category_id']]);
+            if ($cat !== null) {
+                if ($cat['parent_id'] !== null) {
+                    $selectedParentId = (int)$cat['parent_id'];
+                    $selectedSubId = (int)$cat['id'];
+                } else {
+                    $selectedParentId = (int)$cat['id'];
+                    $selectedSubId = 0;
+                }
+            }
+        }
+        $categoryTree = CategoryController::getTree();
+
+        View::render('requests/edit', [
+            'row' => $row ?? self::defaults(),
+            'connections' => $connections,
+            'changed' => $changed,
+            'categoryTree' => $categoryTree,
+            'selectedParentId' => $selectedParentId,
+            'selectedSubId' => $selectedSubId,
+        ], $row === null ? 'New request' : 'Edit request', 'request-edit');
     }
 
     public static function save(int $id): void
@@ -144,12 +286,17 @@ final class RequestController
         $in = self::input();
         $errors = self::validate($in, $id);
         if ($errors !== []) {
+            $parentIdRaw = (int)(Http::param('parent_category_id', 'p') ?? 0);
+            $subIdRaw = (int)(Http::param('subcategory_id', 'p') ?? 0);
             // Re-render with everything the admin typed plus a red border on
             // the offending field — a redirect would blank the whole form.
             View::render('requests/edit', [
                 'row' => self::rowFromInput($in, $id),
                 'connections' => $db->rows('SELECT id, name, db_type, is_active FROM connections ORDER BY name'),
                 'errors' => $errors,
+                'categoryTree' => CategoryController::getTree(),
+                'selectedParentId' => $parentIdRaw,
+                'selectedSubId' => $subIdRaw,
             ], $id > 0 ? 'Edit request' : 'New request', 'request-edit');
             return;
         }
@@ -159,11 +306,11 @@ final class RequestController
         if ($id > 0) {
             $before = $db->one('SELECT * FROM requests WHERE id = ?', [$id]);
             $db->execute(
-                'UPDATE requests SET code=?, name=?, description=?, sql_text=?, params_json=?, connection_id=?,
+                'UPDATE requests SET code=?, name=?, description=?, sql_text=?, params_json=?, connection_id=?, category_id=?,
                     response_mode=?, instant_cache_seconds=?, delay_minutes=?, ttl_minutes=?,
                     timeout_seconds=?, max_rows=?, is_active=?, updated_by=?, updated_at=?
                  WHERE id=?',
-                [$in['code'], $in['name'], $in['description'], $in['sql_text'], $in['params_json'], $in['connection_id'],
+                [$in['code'], $in['name'], $in['description'], $in['sql_text'], $in['params_json'], $in['connection_id'], $in['category_id'],
                     $in['response_mode'], $in['instant_cache_seconds'], $in['delay_minutes'],
                     $in['ttl_minutes'], $in['timeout_seconds'], $in['max_rows'], $in['is_active'],
                     $adminId, $now, $id]
@@ -174,11 +321,11 @@ final class RequestController
             Http::redirect('/admin/requests');
         } else {
             $db->execute(
-                'INSERT INTO requests (code, name, description, sql_text, params_json, connection_id, response_mode,
+                'INSERT INTO requests (code, name, description, sql_text, params_json, connection_id, category_id, response_mode,
                     instant_cache_seconds, delay_minutes, ttl_minutes, timeout_seconds, max_rows,
                     is_active, created_by, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [$in['code'], $in['name'], $in['description'], $in['sql_text'], $in['params_json'], $in['connection_id'],
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$in['code'], $in['name'], $in['description'], $in['sql_text'], $in['params_json'], $in['connection_id'], $in['category_id'],
                     $in['response_mode'], $in['instant_cache_seconds'], $in['delay_minutes'],
                     $in['ttl_minutes'], $in['timeout_seconds'], $in['max_rows'], $in['is_active'],
                     $adminId, $now]
@@ -391,7 +538,7 @@ final class RequestController
         $instant = (array)Config::get('limits.instant.defaults', []);
         return [
             'id' => 0, 'code' => '', 'name' => '', 'description' => '', 'sql_text' => '',
-            'connection_id' => 0, 'response_mode' => 'delayed',
+            'connection_id' => 0, 'category_id' => null, 'response_mode' => 'delayed',
             'instant_cache_seconds' => 0, 'delay_minutes' => 0, 'ttl_minutes' => 15,
             'timeout_seconds' => 60, 'max_rows' => $delayedMax, 'is_active' => 1,
             'instant_defaults' => $instant, 'params_json' => '',
@@ -435,6 +582,15 @@ final class RequestController
         $schema = \Services\QueryParameters::normalizeSchema($rawParamsJson !== '' ? $rawParamsJson : null, $sqlText);
         $finalParamsJson = !empty($schema) ? json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) : null;
 
+        $parentIdRaw = trim((string)(Http::param('parent_category_id', 'p') ?? ''));
+        $subIdRaw = trim((string)(Http::param('subcategory_id', 'p') ?? ''));
+        $catId = null;
+        if (ctype_digit($subIdRaw) && (int)$subIdRaw > 0) {
+            $catId = (int)$subIdRaw;
+        } elseif (ctype_digit($parentIdRaw) && (int)$parentIdRaw > 0) {
+            $catId = (int)$parentIdRaw;
+        }
+
         return [
             'code' => trim((string)Http::param('code', 'p')),
             'name' => trim((string)Http::param('name', 'p')),
@@ -444,6 +600,7 @@ final class RequestController
             // POST only: a query-string connection_id would otherwise retarget
             // the saved request behind the select the admin can see.
             'connection_id' => (int)trim((string)(Http::param('connection_id', 'p') ?? '')),
+            'category_id' => $catId,
             'response_mode' => $mode,
             'instant_cache_seconds' => $mode === 'instant' ? $cache : 0,
             'delay_minutes' => $mode === 'delayed' ? $int('delay_minutes', 'p', 0, 10080, 0) : 0,
@@ -471,6 +628,12 @@ final class RequestController
         $dupe = $db->value('SELECT id FROM requests WHERE code = ? AND id <> ?', [$in['code'], $id]);
         if ($dupe !== null) {
             $e['code'] = 'Code already exists for another request.';
+        }
+        if ($in['category_id'] !== null && $in['category_id'] > 0) {
+            $cat = $db->one('SELECT id FROM request_categories WHERE id = ?', [$in['category_id']]);
+            if ($cat === null) {
+                $e['category_id'] = 'Selected category does not exist.';
+            }
         }
         if ($in['name'] === '') {
             $e['name'] = 'Name is required.';

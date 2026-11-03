@@ -42,7 +42,15 @@ final class ClientController
     /** The edit form: a DB row, or the rejected POST input with field errors. */
     private static function renderEdit(Db $db, array $row, int $id, array $errors): void
     {
-        $requests = $db->rows('SELECT id, code, name, response_mode FROM requests WHERE is_active = 1 ORDER BY code');
+        $requests = $db->rows(
+            'SELECT r.id, r.code, r.name, r.response_mode,
+                    cat.name AS category_name, parent_cat.name AS parent_category_name
+             FROM requests r
+             LEFT JOIN request_categories cat ON cat.id = r.category_id
+             LEFT JOIN request_categories parent_cat ON parent_cat.id = cat.parent_id
+             WHERE r.is_active = 1
+             ORDER BY r.code'
+        );
         $granted = [];
         if ($id > 0) {
             foreach ($db->rows('SELECT request_id FROM client_request_permissions WHERE client_id = ?', [$id]) as $g) {

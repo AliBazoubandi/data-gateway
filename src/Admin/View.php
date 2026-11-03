@@ -110,7 +110,7 @@ final class View
             'sun', 'moon', 'check', 'x', 'info', 'alert', 'clock', 'activity',
             'pulse', 'download', 'send', 'plus', 'filter', 'copy', 'logout',
             'zap', 'terminal', 'pause', 'play', 'chevron-down', 'chevron-start',
-            'chevron-end', 'arrow-start', 'arrow-end', 'pin', 'key', 'trash',
+            'chevron-end', 'arrow-start', 'arrow-end', 'pin', 'key', 'trash', 'folder',
         ];
         if (!in_array($name, $known, true)) {
             return '';
@@ -118,7 +118,7 @@ final class View
         return '<svg class="i" width="' . (int)$size . '" height="' . (int)$size
             . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
             . ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
-            . ' focusable="false"><use href="' . \Core\Http::url('/assets/icons.svg#i-' . $name) . '"></use></svg>';
+            . ' focusable="false"><use href="#i-' . $name . '"></use></svg>';
     }
 
     public static function badge(string $class, string $text): string

@@ -262,6 +262,15 @@ final class ApiController
             $items[] = ['t' => 'r/' . $r['code'] . ' — ' . $r['name'], 'h' => Http::url('/admin/requests/' . (int)$r['id']), 'g' => 'Requests'];
         }
         foreach ($db->rows(
+            'SELECT c.id, c.name, parent.name AS parent_name
+             FROM request_categories c
+             LEFT JOIN request_categories parent ON parent.id = c.parent_id
+             ORDER BY c.name LIMIT 100'
+        ) as $cat) {
+            $path = $cat['parent_name'] !== null ? ($cat['parent_name'] . ' › ' . $cat['name']) : (string)$cat['name'];
+            $items[] = ['t' => 'cat/' . $path, 'h' => Http::url('/admin/requests?category=' . (int)$cat['id']), 'g' => 'Categories'];
+        }
+        foreach ($db->rows(
             'SELECT id, name FROM clients ORDER BY name LIMIT 100'
         ) as $c) {
             $items[] = ['t' => 'c/' . $c['name'], 'h' => Http::url('/admin/clients/' . (int)$c['id']), 'g' => 'Clients'];

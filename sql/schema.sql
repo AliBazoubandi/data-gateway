@@ -80,6 +80,21 @@ CREATE TABLE IF NOT EXISTS `connections` (
 -- ---------------------------------------------------------------------------
 -- Requests (pre-approved, reviewed SQL exposed by code)
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- Request categories (two-level hierarchy: parent_id NULL = level 1, parent_id NOT NULL = level 2)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `request_categories` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `parent_id`   INT UNSIGNED NULL DEFAULT NULL COMMENT 'NULL = top-level category (level 1); NOT NULL = subcategory (level 2)',
+  `name`        VARCHAR(100) NOT NULL,
+  `description` VARCHAR(255) NULL DEFAULT NULL,
+  `sort_order`  INT NOT NULL DEFAULT 0,
+  `created_at`  DATETIME NOT NULL,
+  `updated_at`  DATETIME NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_cat_parent` (`parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `requests` (
   `id`                   INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `code`                 VARCHAR(64)  NOT NULL,
@@ -88,6 +103,7 @@ CREATE TABLE IF NOT EXISTS `requests` (
   `sql_text`             MEDIUMTEXT   NOT NULL,
   `params_json`          MEDIUMTEXT   NULL COMMENT 'JSON array of parameter definitions: [{name, type, required, default, description}]',
   `connection_id`        INT UNSIGNED NOT NULL,
+  `category_id`          INT UNSIGNED NULL DEFAULT NULL,
   `response_mode`        ENUM('delayed','instant') NOT NULL DEFAULT 'delayed',
   `instant_cache_seconds` INT         NOT NULL DEFAULT 0 COMMENT 'instant mode only; 0 = no cache',
   `delay_minutes`        INT          NOT NULL DEFAULT 0 COMMENT 'delayed mode only',
@@ -101,7 +117,8 @@ CREATE TABLE IF NOT EXISTS `requests` (
   `updated_at`           DATETIME     NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_requests_code` (`code`),
-  KEY `idx_requests_connection` (`connection_id`)
+  KEY `idx_requests_connection` (`connection_id`),
+  KEY `idx_requests_category` (`category_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
@@ -312,9 +329,15 @@ CREATE TABLE IF NOT EXISTS `worker_state` (
 -- ---------------------------------------------------------------------------
 -- Foreign keys (added last so the import order never matters)
 -- ---------------------------------------------------------------------------
+ALTER TABLE `request_categories`
+  ADD CONSTRAINT `fk_req_cat_parent`
+  FOREIGN KEY (`parent_id`) REFERENCES `request_categories` (`id`) ON DELETE CASCADE;
+
 ALTER TABLE `requests`
   ADD CONSTRAINT `fk_requests_connection`
-  FOREIGN KEY (`connection_id`) REFERENCES `connections` (`id`) ON DELETE RESTRICT;
+  FOREIGN KEY (`connection_id`) REFERENCES `connections` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `fk_requests_category`
+  FOREIGN KEY (`category_id`) REFERENCES `request_categories` (`id`) ON DELETE SET NULL;
 
 ALTER TABLE `executions`
   ADD CONSTRAINT `fk_exec_request`

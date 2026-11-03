@@ -30,7 +30,15 @@ $adminId = 0;
 $clientId = 0;
 $requestId = 0;
 $connectionId = 0;
-$cleanup = static function () use ($db, &$adminId, &$clientId, &$requestId, &$connectionId, $adminName, $ghostName): void {
+$smokeCatAId = 0;
+$smokeCatBId = 0;
+$cleanup = static function () use ($db, &$adminId, &$clientId, &$requestId, &$connectionId, &$smokeCatAId, &$smokeCatBId, $adminName, $ghostName): void {
+    if ($smokeCatBId > 0) {
+        $db->execute('DELETE FROM request_categories WHERE id = ?', [$smokeCatBId]);
+    }
+    if ($smokeCatAId > 0) {
+        $db->execute('DELETE FROM request_categories WHERE id = ?', [$smokeCatAId]);
+    }
     if ($requestId > 0) {
         $db->execute('DELETE FROM webhook_deliveries WHERE call_id IN (SELECT id FROM calls WHERE request_id = ?)', [$requestId]);
         $db->execute('DELETE FROM calls WHERE request_id = ?', [$requestId]);
@@ -227,6 +235,51 @@ $connectionId = (int)$connId;
 $check('request created + listed', str_contains($body, $code) && str_contains($body, 'Delayed'));
 $reqId = (int)db()->value('SELECT id FROM requests WHERE code = ?', [$code]);
 $requestId = $reqId;
+
+// Categories: Level 1 + Level 2 -------------------------------------------
+[$code, $body] = http('GET', '/admin/categories');
+$check('categories list 200', $code === 200 && str_contains($body, 'Request Categories'));
+$token = csrf($body);
+$smokeCatA = "Smoke CatA {$run}";
+$smokeCatB = "Smoke CatB {$run}";
+
+[$code, $body] = http('POST', '/admin/categories', [
+    '_csrf' => $token, 'id' => 0, 'parent_id' => '', 'name' => $smokeCatA, 'description' => 'Level 1', 'sort_order' => 1,
+]);
+$smokeCatAId = (int)db()->value('SELECT id FROM request_categories WHERE name = ?', [$smokeCatA]);
+$check('parent category created', $smokeCatAId > 0);
+
+[$code, $body] = http('GET', '/admin/categories');
+$token = csrf($body);
+[$code, $body] = http('POST', '/admin/categories', [
+    '_csrf' => $token, 'id' => 0, 'parent_id' => (string)$smokeCatAId, 'name' => $smokeCatB, 'description' => 'Level 2', 'sort_order' => 1,
+]);
+$smokeCatBId = (int)db()->value('SELECT id FROM request_categories WHERE name = ?', [$smokeCatB]);
+$check('child category created under parent', $smokeCatBId > 0);
+
+[$code, $body] = http('GET', '/admin/categories');
+$check('categories listed in hierarchy', str_contains($body, $smokeCatA) && str_contains($body, $smokeCatB));
+
+// Assign request to subcategory B
+[$code, $body] = http('GET', '/admin/requests/' . $reqId);
+$token = csrf($body);
+[$code, $body] = http('POST', '/admin/requests', [
+    '_csrf' => $token, 'id' => $reqId, 'code' => $reqCode, 'name' => 'Smoke ping',
+    'description' => 'smoke', 'sql_text' => 'SELECT 1 AS ping', 'connection_id' => $connId,
+    'parent_category_id' => (string)$smokeCatAId, 'subcategory_id' => (string)$smokeCatBId,
+    'response_mode' => 'delayed', 'delay_minutes' => 0, 'ttl_minutes' => 15,
+    'timeout_seconds' => 30, 'max_rows' => 1000, 'is_active' => 1,
+]);
+$assignedCatId = (int)db()->value('SELECT category_id FROM requests WHERE id = ?', [$reqId]);
+$check('request assigned to subcategory B', $assignedCatId === $smokeCatBId);
+
+// Parent category A lists subcategory B (requests inside subcategory are not shown until subcategory is opened)
+[$code, $body] = http('GET', '/admin/requests?category=' . $smokeCatAId);
+$check('parent category A lists subcategory B', str_contains($body, $smokeCatB));
+
+// Filter by Level 2 subcategory B includes the request
+[$code, $body] = http('GET', '/admin/requests?category=' . $smokeCatBId);
+$check('requests filtered by subcategory B', str_contains($body, $reqCode));
 
 [$code, $body] = http('POST', '/admin/requests/test', ['_csrf' => $token, 'id' => $reqId]);
 $check('test run shows rows', str_contains($body, '<code>1<'));

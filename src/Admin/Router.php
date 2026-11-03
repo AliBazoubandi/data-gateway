@@ -71,6 +71,10 @@ final class Router
                 self::requests($sub, $action, $id);
                 return;
 
+            case 'categories':
+                self::categories($sub, $action, $id);
+                return;
+
             case 'clients':
                 self::clients($sub, $action, $id);
                 return;
@@ -159,6 +163,23 @@ final class Router
             return;
         }
         Controllers\RequestController::edit($id);
+    }
+
+    private static function categories(string $sub, string $action, int $id): void
+    {
+        if (Http::isPost()) {
+            if ($action === 'delete') {
+                Controllers\CategoryController::delete($id);
+            } else {
+                Controllers\CategoryController::save($id);
+            }
+            return;
+        }
+        if ($sub === '' && $action === '') {
+            Controllers\CategoryController::list();
+            return;
+        }
+        Controllers\CategoryController::edit($id);
     }
 
     private static function clients(string $sub, string $action, int $id): void

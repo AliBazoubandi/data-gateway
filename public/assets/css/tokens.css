@@ -7,6 +7,13 @@
 
 /* --- Self-hosted fonts (no CDN). Variable weights, single file each. ------ */
 @font-face {
+  font-family: 'Mikhak';
+  src: url('../fonts/Mikhak-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
   font-family: 'Geist';
   src: url('../fonts/Geist-Variable.woff2') format('woff2');
   font-weight: 100 900;
@@ -99,7 +106,7 @@
   --glow-danger: 0 0 0 1px rgba(255, 92, 108, 0.4), 0 0 16px rgba(255, 92, 108, 0.3);
 
   /* Type */
-  --font-ui: 'Geist', 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  --font-ui: 'Mikhak', 'Geist', 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
   --font-mono: 'Geist Mono', 'Cascadia Mono', 'SF Mono', Consolas, 'Courier New', monospace;
 
   /* Grid texture ink */
@@ -233,3 +240,5 @@ body::before {
 }
 
 .mono { font-family: var(--font-mono); }
+
+[hidden] { display: none !important; }
